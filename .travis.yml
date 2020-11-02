@@ -1,0 +1,32 @@
+dist: trusty
+sudo: required
+services:
+ - docker
+
+addons:
+ apt:
+   packages:
+     - docker-ce
+
+before_install:
+ - docker --version
+ - docker-compose --version
+ - sudo rm /usr/local/bin/docker-compose
+ - curl -L https://github.com/docker/compose/releases/download/1.23.2/docker-compose-`uname -s`-`uname -m` > docker-compose
+ - chmod +x docker-compose
+ - sudo mv docker-compose /usr/local/bin
+ - docker-compose --version
+
+before_script:
+  - docker build ./todo-view -f ./todo-view/Dockerfile.dev -t ndash89/todo-view-test
+  - docker build ./todo-cache-service -f Dockerfile.nodejs.dev -t ndash89/todo-cache-service-test
+
+script:
+  - docker run ndash89/todo-view-test npm test -- --watch=false --no-progress --browsers=ChromeHeadlessNoSandbox
+  - docker run ndash89/todo-cache-service-test npm test
+
+after_success:
+  # Build Production Images for deployment
+  - docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+  - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_ID" --password-stdin
+  - docker-compose -f docker-compose.yml -f docker-compose.prod.yml  
